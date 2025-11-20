@@ -1,0 +1,29 @@
+version: "2"
+services:
+  aws-ot-collector:
+    image: public.ecr.aws/aws-observability/aws-otel-collector:latest
+    command: ["--config=/etc/otel-agent-config.yaml"]
+    environment:
+      - AWS_REGION=ap-northeast-1
+    volumes:
+      - ./otel-agent-config.yaml:/etc/otel-agent-config.yaml
+      - ~/.aws:/home/aoc/.aws
+    ports:
+      - "1777:1777"   # pprof extension
+      - "55679:55679" # zpages extension
+      - "13133"       # health_check
+
+  go-app:
+    build: ./python-auto-instrumentation-sample-app
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aws-ot-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=PythonOtelDemo,service.name=PythonOtelDemoService
+      - AWS_REGION=ap-northeast-1
+      - OTEL_METRICS_EXPORTER=otlp
+      - LISTEN_ADDRESS=0.0.0.0:8080 # web server endpoint
+    volumes:
+      - ~/.aws:/root/.aws # test auto generated trace on S3 access
+    ports:
+      - "8080:8080"   # http sample requests
+    depends_on:
+      - aws-ot-collector
